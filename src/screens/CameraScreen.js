@@ -27,8 +27,8 @@ export default function CameraScreen() {
   const [capturedUri, setCapturedUri] = useState(null);
 
   const openSheet = useCallback(() => {
-    // Defer to the next frame so the sheet mounts before we snap it open.
-    requestAnimationFrame(() => sheetRef.current?.snapToIndex(0));
+    // Small delay ensures React has committed state updates before we open.
+    setTimeout(() => sheetRef.current?.snapToIndex(0), 50);
   }, []);
 
   const handleCapture = useCallback(async () => {
@@ -39,26 +39,35 @@ export default function CameraScreen() {
     setIsProcessing(true);
 
     try {
-      const photo = await cameraRef.current.takePictureAsync({
-        quality: 0.6,
-        base64: true,
-        skipProcessing: false,
-      });
-      setCapturedUri(photo.uri);
+      let photoData = { base64: null, uri: null };
+      try {
+        const photo = await cameraRef.current.takePictureAsync({
+          quality: 0.6,
+          base64: true,
+          skipProcessing: false,
+        });
+        photoData = { base64: photo.base64, uri: photo.uri };
+        setCapturedUri(photo.uri);
+      } catch (photoErr) {
+        // In mock mode, we can still proceed without a real photo
+        console.warn('takePictureAsync failed:', photoErr?.message);
+      }
 
       const { solution: result } = await solveHomework({
-        base64: photo.base64,
-        uri: photo.uri,
+        base64: photoData.base64,
+        uri: photoData.uri,
         mimeType: 'image/jpeg',
       });
 
       setSolution(result);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-    } catch (err) {
-      setError(err?.message ?? 'Unexpected error. Please try again.');
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-    } finally {
       setIsProcessing(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      openSheet();
+    } catch (err) {
+      console.warn('solveHomework failed:', err?.message);
+      setError(err?.message ?? 'Unexpected error. Please try again.');
+      setIsProcessing(false);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
       openSheet();
     }
   }, [isProcessing, isReady, openSheet]);
