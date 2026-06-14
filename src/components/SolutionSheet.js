@@ -1,8 +1,14 @@
-import React, { forwardRef, useImperativeHandle, useMemo, useState } from 'react';
+import React, { forwardRef, useImperativeHandle, useState } from 'react';
 import { Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import Animated, { FadeIn, FadeOut, SlideInDown, SlideOutDown } from 'react-native-reanimated';
+import Animated, {
+  FadeIn,
+  FadeOut,
+  SlideInDown,
+  SlideOutDown,
+  FadeInDown,
+} from 'react-native-reanimated';
 
-import { colors, radius, spacing, typography } from '../theme/theme';
+import { colors, radius, shadows, spacing, typography } from '../theme/theme';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
 
@@ -30,60 +36,66 @@ const SolutionSheet = forwardRef(function SolutionSheet(
 
   if (!visible) return null;
 
+  const dismiss = () => {
+    setVisible(false);
+    onClose?.();
+  };
+
   return (
     <Modal
       visible={visible}
       transparent
       animationType="none"
       statusBarTranslucent
-      onRequestClose={() => {
-        setVisible(false);
-        onClose?.();
-      }}
+      onRequestClose={dismiss}
     >
       {/* Backdrop */}
       <Animated.View
-        entering={FadeIn.duration(200)}
+        entering={FadeIn.duration(220)}
         exiting={FadeOut.duration(200)}
         style={styles.backdrop}
       >
-        <Pressable
-          style={StyleSheet.absoluteFill}
-          onPress={() => {
-            setVisible(false);
-            onClose?.();
-          }}
-        />
+        <Pressable style={StyleSheet.absoluteFill} onPress={dismiss} />
       </Animated.View>
 
       {/* Panel */}
       <Animated.View
-        entering={SlideInDown.duration(350).springify().damping(18)}
-        exiting={SlideOutDown.duration(250)}
+        entering={SlideInDown.duration(400).springify().damping(18)}
+        exiting={SlideOutDown.duration(280)}
         style={styles.panel}
       >
+        {/* Glow border top */}
+        <View style={styles.glowBorder} />
+
         {/* Handle */}
         <View style={styles.handleRow}>
           <View style={styles.handle} />
         </View>
 
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.headerTitle}>
-            {error ? "Couldn't solve this" : 'Solution'}
-          </Text>
+        <Animated.View
+          entering={FadeInDown.delay(150).duration(300)}
+          style={styles.header}
+        >
+          <View style={styles.headerLeft}>
+            <Text style={styles.headerEmoji}>{error ? '⚠️' : '✨'}</Text>
+            <Text style={styles.headerTitle}>
+              {error ? "Couldn't solve this" : 'Solution'}
+            </Text>
+          </View>
           <Pressable
-            onPress={() => {
-              setVisible(false);
-              onClose?.();
-            }}
+            onPress={dismiss}
             hitSlop={12}
             accessibilityRole="button"
             accessibilityLabel="Close solution"
+            style={({ pressed }) => [
+              styles.closeBtn,
+              pressed && styles.closeBtnPressed,
+            ]}
           >
-            <Text style={styles.close}>✕</Text>
+            <Text style={styles.closeIcon}>✕</Text>
           </Pressable>
-        </View>
+        </Animated.View>
 
         {/* Scrollable content */}
         <ScrollView
@@ -93,23 +105,37 @@ const SolutionSheet = forwardRef(function SolutionSheet(
           bounces
         >
           {imageUri ? (
-            <Image
-              source={{ uri: imageUri }}
-              style={styles.preview}
-              resizeMode="cover"
-            />
+            <Animated.View
+              entering={FadeIn.delay(200).duration(400)}
+              style={styles.previewWrapper}
+            >
+              <Image
+                source={{ uri: imageUri }}
+                style={styles.preview}
+                resizeMode="cover"
+              />
+              {/* Gradient fade at bottom of image */}
+              <View style={styles.previewFade} />
+            </Animated.View>
           ) : null}
 
           {error ? (
-            <View style={styles.errorBox}>
+            <Animated.View
+              entering={FadeInDown.delay(250).duration(400)}
+              style={styles.errorBox}
+            >
+              <Text style={styles.errorEmoji}>😕</Text>
               <Text style={styles.errorTitle}>Something went wrong</Text>
               <Text style={styles.errorText}>{error}</Text>
+              <View style={styles.errorDivider} />
               <Text style={styles.errorHint}>
-                Try retaking the photo with better lighting and framing.
+                💡 Try retaking the photo with better lighting and framing.
               </Text>
-            </View>
+            </Animated.View>
           ) : solution ? (
-            <SimpleMD>{solution}</SimpleMD>
+            <Animated.View entering={FadeInDown.delay(200).duration(400)}>
+              <SimpleMD>{solution}</SimpleMD>
+            </Animated.View>
           ) : (
             <Text style={styles.emptyText}>No solution available.</Text>
           )}
@@ -138,6 +164,7 @@ function SimpleMD({ children }) {
     if (codeLines.length > 0) {
       elements.push(
         <View key={`code-${elements.length}`} style={md.codeBlock}>
+          <View style={md.codeBlockAccent} />
           <Text style={md.codeText}>{codeLines.join('\n')}</Text>
         </View>,
       );
@@ -165,19 +192,25 @@ function SimpleMD({ children }) {
 
     const trimmed = line.trim();
     if (trimmed === '') {
-      elements.push(<View key={`sp-${i}`} style={{ height: 8 }} />);
+      elements.push(<View key={`sp-${i}`} style={{ height: 10 }} />);
       continue;
     }
 
     if (trimmed.startsWith('## ')) {
       elements.push(
-        <Text key={i} style={md.h2}>{renderInline(trimmed.slice(3))}</Text>,
+        <View key={i} style={md.h2Wrapper}>
+          <Text style={md.h2}>{renderInline(trimmed.slice(3))}</Text>
+          <View style={md.headingUnderline} />
+        </View>,
       );
       continue;
     }
     if (trimmed.startsWith('# ')) {
       elements.push(
-        <Text key={i} style={md.h1}>{renderInline(trimmed.slice(2))}</Text>,
+        <View key={i} style={md.h1Wrapper}>
+          <Text style={md.h1}>{renderInline(trimmed.slice(2))}</Text>
+          <View style={md.headingUnderline} />
+        </View>,
       );
       continue;
     }
@@ -185,7 +218,8 @@ function SimpleMD({ children }) {
     if (trimmed.startsWith('> ')) {
       elements.push(
         <View key={i} style={md.blockquote}>
-          <Text style={md.body}>{renderInline(trimmed.slice(2))}</Text>
+          <View style={md.blockquoteBar} />
+          <Text style={md.blockquoteText}>{renderInline(trimmed.slice(2))}</Text>
         </View>,
       );
       continue;
@@ -194,7 +228,7 @@ function SimpleMD({ children }) {
     if (/^[-*] /.test(trimmed)) {
       elements.push(
         <View key={i} style={md.listItem}>
-          <Text style={md.bullet}>{'\u2022'}</Text>
+          <View style={md.bulletDot} />
           <Text style={[md.body, md.listText]}>{renderInline(trimmed.slice(2))}</Text>
         </View>,
       );
@@ -205,7 +239,9 @@ function SimpleMD({ children }) {
     if (numMatch) {
       elements.push(
         <View key={i} style={md.listItem}>
-          <Text style={md.bullet}>{numMatch[1]}.</Text>
+          <View style={md.numberBadge}>
+            <Text style={md.numberText}>{numMatch[1]}</Text>
+          </View>
           <Text style={[md.body, md.listText]}>{renderInline(numMatch[2])}</Text>
         </View>,
       );
@@ -250,42 +286,109 @@ function renderInline(text) {
 /* ──────────────────────────── Styles ──────────────────────────── */
 
 const md = StyleSheet.create({
-  h1: { color: colors.text, fontSize: 22, fontWeight: '800', marginTop: spacing.md, marginBottom: spacing.sm },
-  h2: { color: colors.text, fontSize: 19, fontWeight: '700', marginTop: spacing.md, marginBottom: spacing.xs },
-  body: { color: colors.text, fontSize: 16, lineHeight: 24 },
-  bold: { fontWeight: '800' },
+  h1Wrapper: { marginTop: spacing.lg, marginBottom: spacing.sm },
+  h1: { color: colors.text, fontSize: 22, fontWeight: '800' },
+  h2Wrapper: { marginTop: spacing.md, marginBottom: spacing.xs },
+  h2: { color: colors.text, fontSize: 19, fontWeight: '700' },
+  headingUnderline: {
+    height: 2,
+    width: 40,
+    borderRadius: 1,
+    backgroundColor: colors.primary,
+    opacity: 0.5,
+    marginTop: 6,
+  },
+  body: { color: colors.text, fontSize: 16, lineHeight: 25 },
+  bold: { fontWeight: '800', color: colors.primaryLight },
   inlineCode: {
     color: colors.success,
     backgroundColor: colors.surfaceAlt,
-    paddingHorizontal: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
+    borderRadius: 4,
     fontFamily: 'monospace',
     fontSize: 14,
+    overflow: 'hidden',
   },
   blockquote: {
-    backgroundColor: colors.surfaceAlt,
-    borderLeftColor: colors.primary,
-    borderLeftWidth: 4,
+    backgroundColor: 'rgba(124,92,255,0.08)',
     borderRadius: radius.sm,
     paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
+    paddingLeft: spacing.lg,
+    paddingVertical: spacing.sm + 2,
     marginVertical: spacing.sm,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  listItem: { flexDirection: 'row', alignItems: 'flex-start', marginVertical: 2, paddingRight: spacing.md },
+  blockquoteBar: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    backgroundColor: colors.primary,
+    borderRadius: 2,
+  },
+  blockquoteText: { color: colors.text, fontSize: 15, lineHeight: 22, fontStyle: 'italic' },
+  listItem: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginVertical: 3,
+    paddingRight: spacing.md,
+  },
   listText: { flex: 1 },
-  bullet: { color: colors.textMuted, fontSize: 16, width: 24, lineHeight: 24 },
+  bulletDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 4,
+    backgroundColor: colors.primary,
+    marginTop: 9,
+    marginRight: 12,
+  },
+  numberBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(124,92,255,0.15)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 2,
+    marginRight: 10,
+  },
+  numberText: {
+    color: colors.primaryLight,
+    fontSize: 12,
+    fontWeight: '700',
+  },
   codeBlock: {
     backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.sm,
+    borderRadius: radius.md,
     padding: spacing.md,
+    paddingLeft: spacing.lg,
     marginVertical: spacing.sm,
+    position: 'relative',
+    overflow: 'hidden',
   },
-  codeText: { color: colors.text, fontFamily: 'monospace', fontSize: 13, lineHeight: 20 },
+  codeBlockAccent: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+    backgroundColor: colors.secondary,
+  },
+  codeText: {
+    color: colors.text,
+    fontFamily: 'monospace',
+    fontSize: 13,
+    lineHeight: 20,
+  },
 });
 
 const styles = StyleSheet.create({
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0,0,0,0.55)',
+    backgroundColor: 'rgba(13,11,26,0.65)',
   },
   panel: {
     position: 'absolute',
@@ -294,16 +397,24 @@ const styles = StyleSheet.create({
     right: 0,
     maxHeight: SCREEN_HEIGHT * 0.88,
     backgroundColor: colors.surface,
-    borderTopLeftRadius: radius.lg,
-    borderTopRightRadius: radius.lg,
+    borderTopLeftRadius: radius.xl,
+    borderTopRightRadius: radius.xl,
     overflow: 'hidden',
+  },
+  glowBorder: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    height: 1,
+    backgroundColor: colors.borderLight,
   },
   handleRow: {
     alignItems: 'center',
-    paddingVertical: spacing.sm,
+    paddingVertical: spacing.sm + 2,
   },
   handle: {
-    width: 44,
+    width: 48,
     height: 5,
     borderRadius: 3,
     backgroundColor: colors.handle,
@@ -313,29 +424,68 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: spacing.lg,
-    paddingBottom: spacing.sm,
+    paddingBottom: spacing.md,
     borderBottomWidth: StyleSheet.hairlineWidth,
     borderBottomColor: colors.border,
   },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  headerEmoji: { fontSize: 20 },
   headerTitle: { ...typography.title, color: colors.text },
-  close: { color: colors.textMuted, fontSize: 20, fontWeight: '600' },
+  closeBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  closeBtnPressed: { opacity: 0.6, transform: [{ scale: 0.9 }] },
+  closeIcon: { color: colors.textMuted, fontSize: 14, fontWeight: '700' },
   scroll: { flexGrow: 0 },
-  content: { padding: spacing.lg, paddingBottom: spacing.xl * 2 },
+  content: { padding: spacing.lg, paddingBottom: spacing.xxxl * 2 },
+  previewWrapper: {
+    borderRadius: radius.md,
+    overflow: 'hidden',
+    marginBottom: spacing.lg,
+  },
   preview: {
     width: '100%',
-    height: 160,
-    borderRadius: radius.md,
-    marginBottom: spacing.lg,
+    height: 170,
     backgroundColor: colors.surfaceAlt,
+  },
+  previewFade: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 50,
+    backgroundColor: 'transparent',
+    // Simulated bottom fade with a semi-transparent overlay
+    borderBottomLeftRadius: radius.md,
+    borderBottomRightRadius: radius.md,
   },
   errorBox: {
     backgroundColor: colors.surfaceAlt,
-    borderRadius: radius.md,
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: 'rgba(255,90,110,0.15)',
     padding: spacing.lg,
     gap: spacing.sm,
+    alignItems: 'center',
   },
-  errorTitle: { ...typography.subtitle, color: colors.danger },
-  errorText: { ...typography.body, color: colors.text },
-  errorHint: { ...typography.caption, color: colors.textMuted },
+  errorEmoji: { fontSize: 36, marginBottom: spacing.xs },
+  errorTitle: { ...typography.subtitle, color: colors.danger, textAlign: 'center' },
+  errorText: { ...typography.body, color: colors.text, textAlign: 'center' },
+  errorDivider: {
+    height: 1,
+    width: '80%',
+    backgroundColor: colors.border,
+    marginVertical: spacing.sm,
+  },
+  errorHint: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
   emptyText: { ...typography.body, color: colors.textMuted, textAlign: 'center', marginTop: spacing.lg },
 });

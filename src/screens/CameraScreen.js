@@ -3,9 +3,11 @@ import { StyleSheet, Text, View } from 'react-native';
 import { CameraView } from 'expo-camera';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import * as Haptics from 'expo-haptics';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 
 import CaptureButton from '../components/CaptureButton';
 import LoadingOverlay from '../components/LoadingOverlay';
+import ScanFrame from '../components/ScanFrame';
 import SolutionSheet from '../components/SolutionSheet';
 import { solveHomework } from '../services/apiService';
 import { colors, spacing, typography } from '../theme/theme';
@@ -87,11 +89,24 @@ export default function CameraScreen() {
         onCameraReady={() => setIsReady(true)}
       />
 
-      {/* Top hint */}
-      <View style={[styles.topBar, { paddingTop: insets.top + spacing.sm }]} pointerEvents="none">
-        <Text style={styles.brand}>HomeWorker</Text>
-        <Text style={styles.hint}>Point at a question and tap to solve</Text>
+      {/* Scan frame overlay */}
+      <ScanFrame />
+
+      {/* Top bar */}
+      <View style={[styles.topBar, { paddingTop: insets.top + spacing.md }]} pointerEvents="none">
+        <Animated.View entering={FadeInDown.duration(600).delay(300)} style={styles.brandRow}>
+          <Text style={styles.brand}>HomeWorker</Text>
+          <View style={styles.badge}>
+            <Text style={styles.badgeText}>AI Tutor</Text>
+          </View>
+        </Animated.View>
+        <Animated.View entering={FadeIn.duration(500).delay(600)} style={styles.hintPill}>
+          <Text style={styles.hint}>Point at a question and tap to solve</Text>
+        </Animated.View>
       </View>
+
+      {/* Bottom gradient fade */}
+      <View style={[styles.bottomFade, { height: 160 + insets.bottom }]} pointerEvents="none" />
 
       {/* Shutter */}
       <View style={[styles.controls, { paddingBottom: insets.bottom + spacing.lg }]}>
@@ -113,8 +128,65 @@ export default function CameraScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: colors.background },
-  topBar: { position: 'absolute', top: 0, left: 0, right: 0, alignItems: 'center', gap: 2 },
-  brand: { ...typography.brand, color: colors.text, textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 6 },
-  hint: { ...typography.caption, color: 'rgba(255,255,255,0.85)', textShadowColor: 'rgba(0,0,0,0.5)', textShadowRadius: 6 },
-  controls: { position: 'absolute', bottom: 0, left: 0, right: 0, alignItems: 'center' },
+  topBar: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  brandRow: {
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  brand: {
+    ...typography.brand,
+    color: colors.text,
+    textShadowColor: 'rgba(0,0,0,0.6)',
+    textShadowRadius: 10,
+    textShadowOffset: { width: 0, height: 2 },
+  },
+  badge: {
+    backgroundColor: 'rgba(124,92,255,0.25)',
+    borderWidth: 1,
+    borderColor: 'rgba(124,92,255,0.35)',
+    borderRadius: 999,
+    paddingHorizontal: spacing.sm + 2,
+    paddingVertical: 2,
+  },
+  badgeText: {
+    ...typography.small,
+    color: colors.primaryLight,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  hintPill: {
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 999,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.xs + 2,
+    marginTop: spacing.xs,
+  },
+  hint: {
+    ...typography.caption,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  bottomFade: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    // Simulated gradient: a semi-transparent dark overlay that fades the bottom
+    backgroundColor: 'rgba(13,11,26,0.45)',
+  },
+  controls: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
 });
