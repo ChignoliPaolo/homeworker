@@ -1,5 +1,5 @@
-import React, { forwardRef, useImperativeHandle, useState } from 'react';
-import { Dimensions, Image, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { forwardRef, useCallback, useImperativeHandle, useState } from 'react';
+import { Dimensions, Image, Modal, Pressable, ScrollView, Share, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   FadeIn,
   FadeOut,
@@ -7,10 +7,32 @@ import Animated, {
   SlideOutDown,
   FadeInDown,
 } from 'react-native-reanimated';
+import * as Clipboard from 'expo-clipboard';
+import * as Haptics from 'expo-haptics';
 
 import { colors, radius, shadows, spacing, typography } from '../theme/theme';
 
 const SCREEN_HEIGHT = Dimensions.get('window').height;
+
+/* ── Subject badge colour map ── */
+const SUBJECT_COLORS = {
+  Math:        { bg: 'rgba(124,92,255,0.18)', border: 'rgba(124,92,255,0.35)', text: '#9B7FFF', emoji: '📐' },
+  Physics:     { bg: 'rgba(91,141,239,0.18)', border: 'rgba(91,141,239,0.35)', text: '#5B8DEF', emoji: '⚛️' },
+  Chemistry:   { bg: 'rgba(52,211,153,0.18)', border: 'rgba(52,211,153,0.35)', text: '#34D399', emoji: '🧪' },
+  Biology:     { bg: 'rgba(52,211,153,0.18)', border: 'rgba(52,211,153,0.35)', text: '#34D399', emoji: '🧬' },
+  History:     { bg: 'rgba(251,191,36,0.18)',  border: 'rgba(251,191,36,0.35)',  text: '#FBBF24', emoji: '📜' },
+  Literature:  { bg: 'rgba(255,107,157,0.18)', border: 'rgba(255,107,157,0.35)', text: '#FF6B9D', emoji: '📚' },
+  Programming: { bg: 'rgba(52,211,153,0.18)',  border: 'rgba(52,211,153,0.35)',  text: '#34D399', emoji: '💻' },
+  Geography:   { bg: 'rgba(91,141,239,0.18)',  border: 'rgba(91,141,239,0.35)',  text: '#5B8DEF', emoji: '🌍' },
+  Economics:   { bg: 'rgba(251,191,36,0.18)',  border: 'rgba(251,191,36,0.35)',  text: '#FBBF24', emoji: '📊' },
+};
+
+const DEFAULT_SUBJECT_STYLE = { bg: 'rgba(124,92,255,0.15)', border: 'rgba(124,92,255,0.30)', text: colors.primaryLight, emoji: '📝' };
+
+function getSubjectStyle(subject) {
+  if (!subject) return null;
+  return SUBJECT_COLORS[subject] ?? DEFAULT_SUBJECT_STYLE;
+}
 
 /**
  * A solution panel that slides up from the bottom over the camera.
@@ -21,13 +43,18 @@ const SCREEN_HEIGHT = Dimensions.get('window').height;
  */
 
 const SolutionSheet = forwardRef(function SolutionSheet(
-  { solution, error, imageUri, onClose },
+  { solution, subject, error, imageUri, onClose, onRetry },
   ref,
 ) {
   const [visible, setVisible] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   useImperativeHandle(ref, () => ({
-    snapToIndex: () => setVisible(true),
+    snapToIndex: () => {
+      setVisible(true);
+      // ── Feature 6: Haptic on open ──
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+    },
     close: () => {
       setVisible(false);
       onClose?.();
@@ -37,9 +64,45 @@ const SolutionSheet = forwardRef(function SolutionSheet(
   if (!visible) return null;
 
   const dismiss = () => {
+    // ── Feature 6: Haptic on close ──
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
     setVisible(false);
     onClose?.();
   };
+
+  // ── Feature 3: Copy to clipboard ──
+  const handleCopy = async () => {
+    if (!solution) return;
+    try {
+      await Clipboard.setStringAsync(solution);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch (e) {
+      console.warn('Clipboard copy failed:', e?.message);
+    }
+  };
+
+  // ── Feature 4: Share solution ──
+  const handleShare = async () => {
+    if (!solution) return;
+    try {
+      await Share.share({
+        message: solution,
+        title: 'HomeWorker Solution',
+      });
+    } catch (e) {
+      console.warn('Share failed:', e?.message);
+    }
+  };
+
+  // ── Feature 5: Retry ──
+  const handleRetry = () => {
+    dismiss();
+    onRetry?.();
+  };
+
+  const subjectStyle = getSubjectStyle(subject);
 
   return (
     <Modal
@@ -82,19 +145,60 @@ const SolutionSheet = forwardRef(function SolutionSheet(
             <Text style={styles.headerTitle}>
               {error ? "Couldn't solve this" : 'Solution'}
             </Text>
+            {/* ── Feature 7: Subject badge ── */}
+            {subjectStyle && !error && (
+              <View style={[styles.subjectBadge, { backgroundColor: subjectStyle.bg, borderColor: subjectStyle.border }]}>
+                <Text style={styles.subjectEmoji}>{subjectStyle.emoji}</Text>
+                <Text style={[styles.subjectText, { color: subjectStyle.text }]}>{subject}</Text>
+              </View>
+            )}
           </View>
-          <Pressable
-            onPress={dismiss}
-            hitSlop={12}
-            accessibilityRole="button"
-            accessibilityLabel="Close solution"
-            style={({ pressed }) => [
-              styles.closeBtn,
-              pressed && styles.closeBtnPressed,
-            ]}
-          >
-            <Text style={styles.closeIcon}>✕</Text>
-          </Pressable>
+          <View style={styles.headerActions}>
+            {/* Feature 3: Copy button */}
+            {solution && !error && (
+              <Pressable
+                onPress={handleCopy}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Copy solution"
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  pressed && styles.actionBtnPressed,
+                  copied && styles.actionBtnActive,
+                ]}
+              >
+                <Text style={styles.actionIcon}>{copied ? '✓' : '📋'}</Text>
+              </Pressable>
+            )}
+            {/* Feature 4: Share button */}
+            {solution && !error && (
+              <Pressable
+                onPress={handleShare}
+                hitSlop={8}
+                accessibilityRole="button"
+                accessibilityLabel="Share solution"
+                style={({ pressed }) => [
+                  styles.actionBtn,
+                  pressed && styles.actionBtnPressed,
+                ]}
+              >
+                <Text style={styles.actionIcon}>↗</Text>
+              </Pressable>
+            )}
+            {/* Close button */}
+            <Pressable
+              onPress={dismiss}
+              hitSlop={12}
+              accessibilityRole="button"
+              accessibilityLabel="Close solution"
+              style={({ pressed }) => [
+                styles.closeBtn,
+                pressed && styles.closeBtnPressed,
+              ]}
+            >
+              <Text style={styles.closeIcon}>✕</Text>
+            </Pressable>
+          </View>
         </Animated.View>
 
         {/* Scrollable content */}
@@ -139,6 +243,22 @@ const SolutionSheet = forwardRef(function SolutionSheet(
           ) : (
             <Text style={styles.emptyText}>No solution available.</Text>
           )}
+
+          {/* ── Feature 5: Retry / Retake button ── */}
+          <Animated.View entering={FadeInDown.delay(350).duration(300)} style={styles.retryRow}>
+            <Pressable
+              onPress={handleRetry}
+              accessibilityRole="button"
+              accessibilityLabel="Retake photo"
+              style={({ pressed }) => [
+                styles.retryBtn,
+                pressed && styles.retryBtnPressed,
+              ]}
+            >
+              <Text style={styles.retryIcon}>📸</Text>
+              <Text style={styles.retryText}>Retake</Text>
+            </Pressable>
+          </Animated.View>
         </ScrollView>
       </Animated.View>
     </Modal>
@@ -432,9 +552,51 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: spacing.sm,
+    flex: 1,
+    flexWrap: 'wrap',
   },
   headerEmoji: { fontSize: 20 },
   headerTitle: { ...typography.title, color: colors.text },
+
+  /* ── Feature 7: Subject badge ── */
+  subjectBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 999,
+    borderWidth: 1,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 2,
+  },
+  subjectEmoji: { fontSize: 12 },
+  subjectText: {
+    ...typography.small,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+
+  /* ── Header action buttons ── */
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  actionBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: colors.surfaceAlt,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionBtnPressed: { opacity: 0.6, transform: [{ scale: 0.9 }] },
+  actionBtnActive: {
+    backgroundColor: 'rgba(52,211,153,0.2)',
+    borderWidth: 1,
+    borderColor: 'rgba(52,211,153,0.35)',
+  },
+  actionIcon: { fontSize: 14 },
+
   closeBtn: {
     width: 32,
     height: 32,
@@ -488,4 +650,28 @@ const styles = StyleSheet.create({
   },
   errorHint: { ...typography.caption, color: colors.textMuted, textAlign: 'center' },
   emptyText: { ...typography.body, color: colors.textMuted, textAlign: 'center', marginTop: spacing.lg },
+
+  /* ── Feature 5: Retry button ── */
+  retryRow: {
+    alignItems: 'center',
+    marginTop: spacing.lg,
+    marginBottom: spacing.md,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: colors.borderLight,
+    borderRadius: 999,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.sm + 2,
+  },
+  retryBtnPressed: { opacity: 0.7, transform: [{ scale: 0.97 }] },
+  retryIcon: { fontSize: 16 },
+  retryText: {
+    ...typography.subtitle,
+    color: colors.text,
+  },
 });

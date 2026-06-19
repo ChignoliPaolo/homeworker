@@ -26,6 +26,12 @@
         {
           "cameraPermission": "Allow HomeWorker to use the camera to capture and solve your homework, exercises, and test questions."
         }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow HomeWorker to access your photos so you can solve questions from screenshots and saved images."
+        }
       ]
     ]
   }

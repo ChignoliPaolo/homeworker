@@ -24,7 +24,12 @@ const DEFAULT_PROMPT = [
   'shown in the image. Work in ANY subject (math, physics, chemistry, biology,',
   'history, languages, programming, etc.).',
   '',
-  'Respond in clean GitHub-flavored Markdown:',
+  'On the very first line of your response, include a subject tag in this exact format:',
+  '[SUBJECT: Math]',
+  'Replace "Math" with the actual subject (e.g. Physics, Chemistry, Biology, History,',
+  'Literature, Programming, Geography, Economics, etc.).',
+  '',
+  'Then respond in clean GitHub-flavored Markdown:',
   '- Begin with a short **Answer** section containing the final result.',
   '- Follow with a **Step-by-step** section explaining the reasoning.',
   '- Use LaTeX for math: inline as $...$ and display as $$...$$.',
@@ -82,6 +87,19 @@ function extractSolution(json) {
     return json.candidates[0].content.parts[0].text;
   }
   return null;
+}
+
+/** Parse and strip the [SUBJECT: Xyz] tag from the solution text. */
+export function parseSubject(solutionText) {
+  if (!solutionText) return { subject: null, cleanSolution: solutionText };
+  const match = solutionText.match(/^\[SUBJECT:\s*([^\]]+)\]\s*/i);
+  if (match) {
+    return {
+      subject: match[1].trim(),
+      cleanSolution: solutionText.slice(match[0].length),
+    };
+  }
+  return { subject: null, cleanSolution: solutionText };
 }
 
 async function safeText(response) {
@@ -159,6 +177,7 @@ export async function solveHomework(image) {
 async function mockSolve() {
   await new Promise((resolve) => setTimeout(resolve, 1800));
   const solution = [
+    '[SUBJECT: Math]',
     '## Answer',
     "The derivative is $f'(x) = 6x + 5$.",
     '',
